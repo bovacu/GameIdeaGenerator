@@ -34,6 +34,7 @@ pub struct GeneratorInfo {
     pub game_goals:             Vec<String>,
     pub game_places:            Vec<String>,
     pub template_texts:         Vec<String>,
+    pub challenges:             Vec<String>,
     pub synonyms:               HashMap<String, Vec<String>>
 }
 
@@ -53,12 +54,13 @@ impl GeneratorInfo {
             game_goals:             Vec::new(),
             game_places:            Vec::new(),
             template_texts:         Vec::new(),
+            challenges:             Vec::new(),
             synonyms:               HashMap::new(),
         }
     }
 }
 
-fn generate_random_idea<'a>(generator_info: &'a GeneratorInfo, rng: &mut impl Rng) -> String {
+fn generate_random_idea(generator_info: &GeneratorInfo, rng: &mut impl Rng) -> String {
     let genre                   = &generator_info.genres[rng.gen_range(0, generator_info.genres.len())];
     let theme                   = &generator_info.themes[rng.gen_range(0, generator_info.themes.len())];
     let graphics_dimension      = &generator_info.graphics_dimensions[rng.gen_range(0, generator_info.graphics_dimensions.len())];
@@ -82,7 +84,9 @@ fn generate_random_idea<'a>(generator_info: &'a GeneratorInfo, rng: &mut impl Rn
     let synonym_happening       = &generator_info.synonyms["happening"][rng.gen_range(0, generator_info.synonyms["happening"].len())];
     let synonym_goal            = &generator_info.synonyms["goal"][rng.gen_range(0, generator_info.synonyms["goal"].len())];
 
-    return template_text.replace("{genre}",                 genre)
+
+
+    let mut tweet = template_text.replace("{genre}",                 genre)
                         .replace("{theme}",                 theme)
                         .replace("{graphics_dimension}",    graphics_dimension)
                         .replace("{graphics_style}",        graphics_style)
@@ -99,6 +103,15 @@ fn generate_random_idea<'a>(generator_info: &'a GeneratorInfo, rng: &mut impl Rn
                         .replace("{synonym_mix}",           synonym_mix)
                         .replace("{synonym_happening}",     synonym_happening)
                         .replace("{synonym_goal}",          synonym_goal);
+
+    if rng.gen_range(0, 10) < 2 {
+        tweet.push_str("\n\n");
+        tweet.push_str("Challenge: ");
+        let selected_challenge = rng.gen_range(0, generator_info.challenges.len());
+        tweet.push_str(&generator_info.challenges[selected_challenge]);
+    }
+
+    return tweet;
 }
 
 
@@ -134,7 +147,7 @@ async fn tweet(idea: &String, config: &Config) -> Result<(), Box<dyn std::error:
     }
 
     tweet.send(&config.token).await?;
-    println!("Sent tweet: '{}'", tweet.text);
+    println!("Sent tweet: '{}'", idea);
 
     Ok(())
 }
@@ -151,17 +164,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let generator_info: GeneratorInfo = serde_json::from_str(&data).unwrap();
     let mut rng = rand::thread_rng();
 
-    let idea = generate_random_idea(&generator_info, &mut rng);
-
-    let mut interval = time::interval(time::Duration::from_secs(60));
+    let mut interval = time::interval(time::Duration::from_secs(60 * 60 * 24));
 
     #[allow(while_true)]
     while true {
         interval.tick().await;
+
+        println!("--------------------- {:?} ---------------------", chrono::offset::Utc::now());
+        
+        let idea = generate_random_idea(&generator_info, &mut rng);
         match tweet(&idea, &config).await {
             Ok(()) => println!("Tweet emitted correclty"),
             Err(err) => eprintln!("There was an error on the tweet process! {}", err.to_string()),
         }
+        
+        println!("-----------------------------------------------------------");
     }
 
     Ok(())
