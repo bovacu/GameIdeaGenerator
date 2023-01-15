@@ -15,20 +15,20 @@ pub use yansi::Paint;
 //This is not an example that can be built with cargo! This is some helper code for the other
 //examples so they can load access keys from the same place.
 
-pub struct Config {
+pub struct TwitterConfig {
     pub token: egg_mode::Token,
     pub user_id: u64,
     pub screen_name: String,
 }
 
-impl Config {
+impl TwitterConfig {
     pub async fn load() -> Self {
-        let a1 = Config::load_inner().await;
+        let a1 = TwitterConfig::load_inner().await;
         if let Some(conf) = a1 {
             return conf;
         }
 
-        Config::load_inner().await.unwrap()
+        TwitterConfig::load_inner().await.unwrap()
     }
 
     /// This needs to be a separate function so we can retry after creating the
@@ -115,7 +115,7 @@ impl Config {
 
         //TODO: Is there a better way to query whether a file exists?
         if std::fs::metadata("twitter_settings").is_ok() {
-            Some(Config {
+            Some(TwitterConfig {
                 token: token,
                 user_id: user_id,
                 screen_name: username,

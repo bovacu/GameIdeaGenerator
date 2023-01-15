@@ -1,5 +1,5 @@
 mod common;
-use common::Config;
+use common::TwitterConfig;
 
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +7,7 @@ use rand::Rng;
 use tokio::time;
 
 use std::fs::File;
+use std::io::Write;
 use std::io::{BufReader, Read};
 use std::collections::HashMap;
 
@@ -115,7 +116,7 @@ fn generate_random_idea(generator_info: &GeneratorInfo, rng: &mut impl Rng) -> S
 }
 
 
-async fn tweet(idea: &String, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+async fn tweet(idea: &String, config: &TwitterConfig, w: &mut File) -> Result<(), Box<dyn std::error::Error>> {
     let mut tweet = DraftTweet::new(idea.clone());
     let params = [("key", include_str!("stable_diffusion_key")),
                   ("width", "512"),
@@ -140,21 +141,22 @@ async fn tweet(idea: &String, config: &Config) -> Result<(), Box<dyn std::error:
 
             tweet.add_media(handle.id.clone());
             set_metadata(&handle.id, "Image to help your imagination", &config.token).await?;
-            println!("Media uploaded");
         }
     } else {
-        println!("There was an error retrieving the image data {}", resp.status());
+        writeln!(w, "There was an error retrieving the image data {}", resp.status())?;
     }
 
     tweet.send(&config.token).await?;
-    println!("Sent tweet: '{}'", idea);
 
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = common::Config::load().await;
+    let logs_name = format!("game_idea_generator_output_{}.log", chrono::offset::Utc::now().format("%d-%m-%Y_%Hh-%Mm-%Ss").to_string());
+    let mut w = File::create(format!("./logs/{}", logs_name)).unwrap();
+
+    let config = common::TwitterConfig::load().await;
 
     let mut data = String::new();
     let f = File::open("data.json").expect("Unable to open file");
@@ -169,16 +171,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[allow(while_true)]
     while true {
         interval.tick().await;
-
-        println!("--------------------- {:?} ---------------------", chrono::offset::Utc::now());
+        writeln!(&mut w, "--------------------- {:?} ---------------------", chrono::offset::Utc::now())?;
         
         let idea = generate_random_idea(&generator_info, &mut rng);
-        match tweet(&idea, &config).await {
-            Ok(()) => println!("Tweet emitted correclty"),
-            Err(err) => eprintln!("There was an error on the tweet process! {}", err.to_string()),
+        match tweet(&idea, &config, &mut w).await {
+            Ok(()) => writeln!(&mut w, "Tweet emitted correclty: {}", idea)?,
+            Err(err) => writeln!(&mut w, "There was an error on the tweet process! {}", err.to_string())?,
         }
         
-        println!("-----------------------------------------------------------");
+        writeln!(&mut w, "-----------------------------------------------------------\n\n")?;
     }
 
     Ok(())
