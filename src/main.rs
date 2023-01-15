@@ -4,6 +4,7 @@ use common::Config;
 use serde::{Deserialize, Serialize};
 
 use rand::Rng;
+use tokio::time;
 
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -11,7 +12,6 @@ use std::collections::HashMap;
 
 use egg_mode::media::{media_types, set_metadata, upload_media};
 use egg_mode::tweet::DraftTweet;
-
 
 #[derive(Serialize, Deserialize)]
 pub struct StableDiffusionResponse {
@@ -115,17 +115,22 @@ async fn tweet(idea: &String, config: &Config) -> Result<(), Box<dyn std::error:
         .form(&params)
         .send()
         .await?;
-    let text = resp.text().await;
-    let links: StableDiffusionResponse = serde_json::from_str(&text?).unwrap();
-    let typ = media_types::image_png();
 
-    for link in links.output {
-        let bytes = client.get(&link).send().await?.bytes().await.unwrap();
-        let handle = upload_media(&bytes, &typ, &config.token).await?;
+    if resp.status().is_success() {
+        let text = resp.text().await;
+        let links: StableDiffusionResponse = serde_json::from_str(&text?).unwrap();
+        let typ = media_types::image_png();
 
-        tweet.add_media(handle.id.clone());
-        set_metadata(&handle.id, "Image to help your imagination", &config.token).await?;
-        println!("Media uploaded");
+        for link in links.output {
+            let bytes = client.get(&link).send().await?.bytes().await.unwrap();
+            let handle = upload_media(&bytes, &typ, &config.token).await?;
+
+            tweet.add_media(handle.id.clone());
+            set_metadata(&handle.id, "Image to help your imagination", &config.token).await?;
+            println!("Media uploaded");
+        }
+    } else {
+        println!("There was an error retrieving the image data {}", resp.status());
     }
 
     tweet.send(&config.token).await?;
@@ -133,7 +138,6 @@ async fn tweet(idea: &String, config: &Config) -> Result<(), Box<dyn std::error:
 
     Ok(())
 }
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -149,7 +153,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let idea = generate_random_idea(&generator_info, &mut rng);
 
-    tweet(&idea, &config).await?;
+    let mut interval = time::interval(time::Duration::from_secs(60));
+
+    #[allow(while_true)]
+    while true {
+        interval.tick().await;
+        match tweet(&idea, &config).await {
+            Ok(()) => println!("Tweet emitted correclty"),
+            Err(err) => eprintln!("There was an error on the tweet process! {}", err.to_string()),
+        }
+    }
 
     Ok(())
 }
