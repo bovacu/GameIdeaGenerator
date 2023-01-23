@@ -11,7 +11,7 @@ use std::io::Write;
 use std::io::{BufReader, Read};
 use std::collections::HashMap;
 
-use egg_mode::media::{media_types, set_metadata, upload_media};
+use egg_mode::media::{media_types, upload_media};
 use egg_mode::tweet::DraftTweet;
 
 #[derive(Serialize, Deserialize)]
@@ -125,28 +125,42 @@ async fn tweet(idea: &String, config: &TwitterConfig, w: &mut File) -> Result<()
                   ("prompt", idea.as_str())];
 
     let client = reqwest::Client::new();
-    let resp = client.post("https://stablediffusionapi.com/api/v3/text2img")
+    match client.post("https://stablediffusionapi.com/api/v3/text2img")
         .form(&params)
+        .timeout(std::time::Duration::from_secs(180))
         .send()
-        .await?;
+        .await {
+            Ok(resp) => {
+                writeln!(w, "Image data retreived")?;
+                let text = resp.text().await;
 
-    if resp.status().is_success() {
-        let text = resp.text().await;
-        let links: StableDiffusionResponse = serde_json::from_str(&text?).unwrap();
-        let typ = media_types::image_png();
+                match text {
+                    Ok(text_ok) => {
 
-        for link in links.output {
-            let bytes = client.get(&link).send().await?.bytes().await.unwrap();
-            let handle = upload_media(&bytes, &typ, &config.token).await?;
+                        if text_ok.contains("output") {
+                            let links: StableDiffusionResponse = serde_json::from_str(&text_ok).unwrap();
+                            let typ = media_types::image_png();
 
-            tweet.add_media(handle.id.clone());
-            set_metadata(&handle.id, "Image to help your imagination", &config.token).await?;
+                            for link in links.output {
+                                let bytes = client.get(&link).send().await?.bytes().await.unwrap();
+                                match upload_media(&bytes, &typ, &config.token).await {
+                                    Ok(handle) => { tweet.add_media(handle.id.clone()); writeln!(w, "Uploaded data")?;},
+                                    Err(handle_err) => writeln!(w, "There was an error uploading media {}", handle_err)?,
+                                }
+                            }
+                        } else {
+                            writeln!(w, "Error on request for images {}", text_ok)?;
+                        }
+
+                        tweet.send(&config.token).await?;
+                    },
+                    Err(err) => { writeln!(w, "There was an error deserializing the text from the request {}", err)?; tweet.send(&config.token).await?;},
+                }
+            },
+            Err(err) => {
+                writeln!(w, "There was an error retrieving the image data {}", err)?;
+            },
         }
-    } else {
-        writeln!(w, "There was an error retrieving the image data {}", resp.status())?;
-    }
-
-    tweet.send(&config.token).await?;
 
     Ok(())
 }
@@ -172,8 +186,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while true {
         interval.tick().await;
         writeln!(&mut w, "--------------------- {:?} ---------------------", chrono::offset::Utc::now())?;
-        
+
         let idea = generate_random_idea(&generator_info, &mut rng);
+        writeln!(&mut w, "Idea generated: {}", idea)?;
+        
         match tweet(&idea, &config, &mut w).await {
             Ok(()) => writeln!(&mut w, "Tweet emitted correclty: {}", idea)?,
             Err(err) => writeln!(&mut w, "There was an error on the tweet process! {}", err.to_string())?,
@@ -181,6 +197,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         writeln!(&mut w, "-----------------------------------------------------------\n\n")?;
     }
+
+    writeln!(&mut w, "THE PROGRAM ENDED! THIS IS A PROBLEM!")?;
 
     Ok(())
 }
