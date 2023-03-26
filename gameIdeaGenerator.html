@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Game Idea Generator</title>
+    <style>
+      html
+      {
+        height:100%;
+      }
+
+      body
+      {
+        background:#000;
+        color:#fff;
+        font-family:Georgia,serif;
+        height:100%;
+        margin:0px;
+      }
+
+      a
+      {
+        color:#ddd;
+        text-decoration:none;
+        outline:none;
+        transition: text-shadow 0.5s;
+        -moz-transition: text-shadow 0.5s;
+        -webkit-transition: text-shadow 0.5s;
+        -o-transition: text-shadow 0.5s;
+      }
+
+      a:hover
+      {
+        color:#fff;
+        text-shadow:0px 0px 4px #999;
+      }
+      a.insane:hover
+      {
+        color:#fff;
+        text-shadow:0px 0px 4px #fff,2px -2px 2px #600,-2px 2px 2px #006;
+      }
+
+
+      #wrap
+      {
+        display:table;
+        width:100%;
+        height:100%;
+        margin-bottom:-96px;
+        min-height:96px;
+        vertical-align:middle;
+        text-align:center;
+      }
+
+      #idea-div
+      {
+        font-size:24pt;
+        display:table-cell;
+        vertical-align:middle;
+        text-align:center;
+      }
+
+      #clipboard {
+        position: fixed;
+        left: 50%;
+        bottom: 20px;
+        transform: translate(-50%, -50%);
+        margin: 0 auto;
+      }
+
+      #copied-clipboard {
+        font-family:Georgia,serif;
+        visibility: hidden;
+        min-width: 250px;
+        margin-left: -125px;
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        border-radius: 2px;
+        padding: 16px;
+        position: fixed;
+        z-index: 1;
+        left: 50%;
+        bottom: 30px;
+      }
+
+      #copied-clipboard.show {
+        visibility: visible;
+        -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        animation: fadein 0.5s, fadeout 0.5s 2.5s;
+      }
+
+      /* Animations to fade the snackbar in and out */
+      @-webkit-keyframes fadein {
+        from {bottom: 0; opacity: 0;}
+        to {bottom: 30px; opacity: 1;}
+      }
+
+      @keyframes fadein {
+        from {bottom: 0; opacity: 0;}
+        to {bottom: 30px; opacity: 1;}
+      }
+
+      @-webkit-keyframes fadeout {
+        from {bottom: 30px; opacity: 1;}
+        to {bottom: 0; opacity: 0;}
+      }
+
+      @keyframes fadeout {
+        from {bottom: 30px; opacity: 1;}
+        to {bottom: 0; opacity: 0;}
+      }
+
+      {background:#222;}
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <div id="idea-div">
+        <a id="idea" href="javascript:getRandomIdea();"></a>
+      </div>
+    </div>
+    <div id="clipboard">
+      <a href="javascript:copyToClipboard();">
+        <img width="96" height="96" src="http://clipground.com/images/copy-4.png" title="Click to Copy">
+      </a>
+    </div>
+    <div id="copied-clipboard">Copied!</div>
+    <script src="gameIdeaGenerator.js"></script>
+  </body>
+</html>
